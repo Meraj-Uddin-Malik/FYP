@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:art_sweetalert/art_sweetalert.dart';
+
 
 import 'login_screen.dart';
 
@@ -62,6 +64,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
     super.dispose();
   }
 
+
+
+  void _clearFields() {
+    _usernameController.clear();
+    _emailController.clear();
+    _cnicController.clear();
+    _phoneController.clear();
+    _passwordController.clear();
+    _confirmPasswordController.clear();
+    setState(() {
+      _selectedGender = null; // Reset dropdown
+    });
+  }
+
+
+
   Future<void> _signUpWithFirebase() async {
     try {
       // Get values from controllers
@@ -71,6 +89,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       String cnic = _cnicController.text.trim();
       String phone = _phoneController.text.trim();
       String gender = _selectedGender ?? 'Not specified'; // default gender
+      String role = 'CITIZEN'; // Set default role, you can modify this logic if needed (e.g., based on user selection)
 
       // Firebase Auth SignUp
       UserCredential userCredential =
@@ -89,10 +108,32 @@ class _SignUpScreenState extends State<SignUpScreen> {
         'phone': phone,
         'gender': gender,
         'email': email,
+        'role': role,
       });
 
-      // After successful signup, navigate to the next screen or show a success message
-      // You can also handle errors by showing an error message.
+
+      ArtSweetAlert.show(
+        context: context,
+        artDialogArgs: ArtDialogArgs(
+          type: ArtSweetAlertType.success,
+          title: "Success",
+          text: "Signup successful!",
+          confirmButtonText: "OK", // Optional: Customize button text
+          onConfirm: () {
+            // Navigate to Login Page
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const LoginPage()),
+            );
+          },
+        ),
+      );
+
+
+      // Clear fields after successful signup
+      _clearFields();
+
+      // Success message
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Signup successful!')));
     } catch (e) {
@@ -160,6 +201,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             padding: const EdgeInsets.only(top: 15.0),
                             child: Column(
                               children: [
+                                _buildTextField(
+                                  TextEditingController(), // Empty controller since it's read-only
+                                  'Role',
+                                  false, // `obscureText` is false as it's not a password
+                                  Icons.account_circle, // No icon is passed
+                                  isReadOnly: true,
+                                  initialValue: 'CITIZEN',
+                                ),
+
+
                                 _buildTextField(_usernameController,
                                     'Enter your name', false, Icons.person),
                                 _buildTextField(_emailController,
@@ -200,17 +251,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 ),
                                 const SizedBox(height: 10.0),
                                 GestureDetector(
-                                  onTap: () =>
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(builder: (
-                                            context) => const LoginPage()),
-                                      ),
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (context) =>
+                                            const LoginPage()),
+                                  ),
                                   child: RichText(
                                     text: TextSpan(
                                       text: "Already have an account? ",
                                       style: const TextStyle(
-                                          color: Color(0xFF2A489E), fontSize: 14.0),
+                                          color: Color(0xFF2A489E),
+                                          fontSize: 14.0),
                                       children: [
                                         TextSpan(
                                           text: 'Sign In.',
@@ -240,64 +292,216 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String labelText, bool obscureText, IconData icon) {
+  // Widget _buildTextField(TextEditingController controller, String labelText,bool obscureText, IconData icon) {
+  //   return Padding(
+  //     padding: const EdgeInsets.only(bottom: 10.0),
+  //     child: TextFormField(
+  //       controller: controller,
+  //       obscureText: obscureText && !_isPasswordVisible,
+  //       style: const TextStyle(
+  //         color: Color(0xFF203982),
+  //         fontSize: 14.0, // Blue text for user input
+  //       ),
+  //       keyboardType:
+  //           labelText == 'Enter your phone' || labelText == 'Enter your CNIC'
+  //               ? TextInputType.number
+  //               : TextInputType.text,
+  //       inputFormatters: labelText == 'Enter your phone'
+  //           ? [
+  //               FilteringTextInputFormatter.digitsOnly, // Allows only digits
+  //               LengthLimitingTextInputFormatter(
+  //                   11), // Limits input to 11 digits
+  //             ]
+  //           : labelText == 'Enter your CNIC'
+  //               ? [
+  //                   FilteringTextInputFormatter
+  //                       .digitsOnly, // Allows only digits
+  //                   LengthLimitingTextInputFormatter(
+  //                       13), // Limit input to 13 digits
+  //                   TextInputFormatter.withFunction((oldValue, newValue) {
+  //                     // **Added: CNIC formatter**
+  //                     String digits =
+  //                         newValue.text.replaceAll(RegExp(r'\D'), '');
+  //                     String formatted = '';
+  //                     if (digits.length <= 5) {
+  //                       formatted = digits; // First 5 digits
+  //                     } else if (digits.length <= 12) {
+  //                       formatted =
+  //                           '${digits.substring(0, 5)}-${digits.substring(5)}'; // Add first hyphen
+  //                     } else {
+  //                       formatted =
+  //                           '${digits.substring(0, 5)}-${digits.substring(5, 12)}-${digits.substring(12)}'; // Add second hyphen
+  //                     }
+  //                     return TextEditingValue(
+  //                       text: formatted,
+  //                       selection:
+  //                           TextSelection.collapsed(offset: formatted.length),
+  //                     );
+  //                   }),
+  //                 ]
+  //               : [],
+  //       decoration: InputDecoration(
+  //         border: const OutlineInputBorder(),
+  //         labelText: labelText,
+  //         labelStyle: TextStyle(
+  //           color: const Color(0xFF203982)
+  //               .withOpacity(0.7), // Placeholder label (inactive)
+  //           fontSize: 13.0,
+  //         ),
+  //         floatingLabelStyle: const TextStyle(
+  //           color: Color(0xFF203982), // Darker color for active label
+  //           fontWeight: FontWeight.w400,
+  //           fontSize: 17.5,
+  //         ),
+  //         contentPadding: const EdgeInsets.symmetric(
+  //           vertical: 8.0,
+  //           horizontal: 10.0,
+  //         ),
+  //         prefixIcon: ShaderMask(
+  //           shaderCallback: (Rect bounds) {
+  //             return const LinearGradient(
+  //               colors: [Color(0xFF203982), Colors.red], // Gradient colors
+  //               begin: Alignment.topLeft,
+  //               end: Alignment.bottomRight,
+  //             ).createShader(bounds);
+  //           },
+  //           child: Icon(
+  //             icon,
+  //             color: Colors.red.shade100, // Base icon color
+  //             size: 19.5,
+  //           ),
+  //         ),
+  //         suffixIcon: labelText == 'Enter your password' ||
+  //                 labelText == 'Confirm your password'
+  //             ? IconButton(
+  //                 icon: Icon(
+  //                   _isPasswordVisible
+  //                       ? Icons.visibility
+  //                       : Icons.visibility_off,
+  //                   color: const Color(0xFF203982),
+  //                 ),
+  //                 iconSize: 19.0,
+  //                 onPressed: () {
+  //                   setState(() {
+  //                     _isPasswordVisible =
+  //                         !_isPasswordVisible; // Toggle visibility
+  //                   });
+  //                 },
+  //               )
+  //             : null,
+  //         enabledBorder: const OutlineInputBorder(
+  //           borderSide: BorderSide(
+  //             color: Color(0xFF203982), // Border color when inactive
+  //             width: 0.6,
+  //           ),
+  //         ),
+  //         focusedBorder: const OutlineInputBorder(
+  //           borderSide: BorderSide(
+  //             color: Color(0xFF203982), // Border color when focused
+  //             width: 1.0,
+  //           ),
+  //         ),
+  //       ),
+  //       validator: (value) {
+  //         if (value == null || value.isEmpty) {
+  //           return 'This field cannot be empty';
+  //         }
+  //         if (labelText == 'Enter your email' &&
+  //             !RegExp(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+  //                 .hasMatch(value)) {
+  //           return 'Please enter a valid email address';
+  //         }
+  //         if (labelText == 'Enter your phone' &&
+  //             (value.length != 11 || !RegExp(r'^\d{11}$').hasMatch(value))) {
+  //           return 'Please enter a valid 11-digit phone number';
+  //         }
+  //         if (labelText == 'Enter your CNIC' &&
+  //             !RegExp(r"^\d{5}-\d{7}-\d$").hasMatch(value)) {
+  //           return 'Please enter a valid CNIC in the format 00000-0000000-0';
+  //         }
+  //
+  //         if (labelText == 'Enter your password') {
+  //           // Strong password regex: At least 8 characters, 1 uppercase, 1 lowercase, 1 digit, 1 special character
+  //           if (!RegExp(
+  //                   r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$')
+  //               .hasMatch(value)) {
+  //             return 'Password must include:\n• At least 8 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 digit\n• 1 special character';
+  //           }
+  //         }
+  //         if (labelText == 'Confirm your password') {
+  //           if (value != _passwordController.text) {
+  //             return 'Passwords do not match';
+  //           }
+  //         }
+  //
+  //         return null;
+  //       },
+  //     ),
+  //   );
+  // }
+
+
+  Widget _buildTextField(
+      TextEditingController controller,
+      String labelText,
+      bool obscureText,
+      IconData icon, {
+        bool isReadOnly = false,
+        String? initialValue,
+      }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10.0),
       child: TextFormField(
-        controller: controller,
+        controller: isReadOnly ? null : controller,
         obscureText: obscureText && !_isPasswordVisible,
+        readOnly: isReadOnly,
+        initialValue: isReadOnly ? initialValue : null,
         style: const TextStyle(
           color: Color(0xFF203982),
           fontSize: 14.0, // Blue text for user input
         ),
-        keyboardType:
-            labelText == 'Enter your phone' || labelText == 'Enter your CNIC'
-                ? TextInputType.number
-                : TextInputType.text,
+        keyboardType: labelText.contains('phone') || labelText.contains('CNIC')
+            ? TextInputType.number
+            : TextInputType.text,
         inputFormatters: labelText == 'Enter your phone'
             ? [
-                FilteringTextInputFormatter.digitsOnly, // Allows only digits
-                LengthLimitingTextInputFormatter(
-                    11), // Limits input to 11 digits
-              ]
+          FilteringTextInputFormatter.digitsOnly, // Allows only digits
+          LengthLimitingTextInputFormatter(11), // Limits input to 11 digits
+        ]
             : labelText == 'Enter your CNIC'
-                ? [
-                    FilteringTextInputFormatter
-                        .digitsOnly, // Allows only digits
-                    LengthLimitingTextInputFormatter(
-                        13), // Limit input to 13 digits
-                    TextInputFormatter.withFunction((oldValue, newValue) {
-                      // **Added: CNIC formatter**
-                      String digits =
-                          newValue.text.replaceAll(RegExp(r'\D'), '');
-                      String formatted = '';
-                      if (digits.length <= 5) {
-                        formatted = digits; // First 5 digits
-                      } else if (digits.length <= 12) {
-                        formatted =
-                            '${digits.substring(0, 5)}-${digits.substring(5)}'; // Add first hyphen
-                      } else {
-                        formatted =
-                            '${digits.substring(0, 5)}-${digits.substring(5, 12)}-${digits.substring(12)}'; // Add second hyphen
-                      }
-                      return TextEditingValue(
-                        text: formatted,
-                        selection:
-                            TextSelection.collapsed(offset: formatted.length),
-                      );
-                    }),
-                  ]
-                : [],
+            ? [
+          FilteringTextInputFormatter.digitsOnly,
+          LengthLimitingTextInputFormatter(13), // CNIC Limit
+          TextInputFormatter.withFunction((oldValue, newValue) {
+            // CNIC Formatter
+            String digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+            String formatted = '';
+            if (digits.length <= 5) {
+              formatted = digits;
+            } else if (digits.length <= 12) {
+              formatted =
+              '${digits.substring(0, 5)}-${digits.substring(5)}';
+            } else {
+              formatted =
+              '${digits.substring(0, 5)}-${digits.substring(5, 12)}-${digits.substring(12)}';
+            }
+            return TextEditingValue(
+              text: formatted,
+              selection:
+              TextSelection.collapsed(offset: formatted.length),
+            );
+          }),
+        ]
+            : [],
         decoration: InputDecoration(
           border: const OutlineInputBorder(),
           labelText: labelText,
           labelStyle: TextStyle(
-            color: const Color(0xFF203982)
-                .withOpacity(0.7), // Placeholder label (inactive)
+            color: const Color(0xFF203982).withOpacity(0.7),
             fontSize: 13.0,
           ),
           floatingLabelStyle: const TextStyle(
-            color: Color(0xFF203982), // Darker color for active label
+            color: Color(0xFF203982), // Active label color
             fontWeight: FontWeight.w400,
             fontSize: 17.5,
           ),
@@ -308,44 +512,43 @@ class _SignUpScreenState extends State<SignUpScreen> {
           prefixIcon: ShaderMask(
             shaderCallback: (Rect bounds) {
               return const LinearGradient(
-                colors: [Color(0xFF203982), Colors.red], // Gradient colors
+                colors: [Color(0xFF203982), Colors.red],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ).createShader(bounds);
             },
             child: Icon(
               icon,
-              color: Colors.red.shade100, // Base icon color
+              color: Colors.red.shade100,
               size: 19.5,
             ),
           ),
-          suffixIcon: labelText == 'Enter your password' ||
-                  labelText == 'Confirm your password'
+          suffixIcon: (labelText == 'Enter your password' ||
+              labelText == 'Confirm your password')
               ? IconButton(
-                  icon: Icon(
-                    _isPasswordVisible
-                        ? Icons.visibility
-                        : Icons.visibility_off,
-                    color: const Color(0xFF203982),
-                  ),
-                  iconSize: 19.0,
-                  onPressed: () {
-                    setState(() {
-                      _isPasswordVisible =
-                          !_isPasswordVisible; // Toggle visibility
-                    });
-                  },
-                )
+            icon: Icon(
+              _isPasswordVisible
+                  ? Icons.visibility
+                  : Icons.visibility_off,
+              color: const Color(0xFF203982),
+            ),
+            iconSize: 19.0,
+            onPressed: () {
+              setState(() {
+                _isPasswordVisible = !_isPasswordVisible;
+              });
+            },
+          )
               : null,
           enabledBorder: const OutlineInputBorder(
             borderSide: BorderSide(
-              color: Color(0xFF203982), // Border color when inactive
+              color: Color(0xFF203982),
               width: 0.6,
             ),
           ),
           focusedBorder: const OutlineInputBorder(
             borderSide: BorderSide(
-              color: Color(0xFF203982), // Border color when focused
+              color: Color(0xFF203982),
               width: 1.0,
             ),
           ),
@@ -357,36 +560,33 @@ class _SignUpScreenState extends State<SignUpScreen> {
           if (labelText == 'Enter your email' &&
               !RegExp(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
                   .hasMatch(value)) {
-            return 'Please enter a valid email address';
+            return 'Invalid email address';
           }
           if (labelText == 'Enter your phone' &&
               (value.length != 11 || !RegExp(r'^\d{11}$').hasMatch(value))) {
-            return 'Please enter a valid 11-digit phone number';
+            return 'Invalid 11-digit phone number';
           }
           if (labelText == 'Enter your CNIC' &&
               !RegExp(r"^\d{5}-\d{7}-\d$").hasMatch(value)) {
-            return 'Please enter a valid CNIC in the format 00000-0000000-0';
+            return 'Invalid CNIC format (e.g., 00000-0000000-0)';
           }
-
           if (labelText == 'Enter your password') {
-            // Strong password regex: At least 8 characters, 1 uppercase, 1 lowercase, 1 digit, 1 special character
             if (!RegExp(
-                    r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$')
+                r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$')
                 .hasMatch(value)) {
-              return 'Password must include:\n• At least 8 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 digit\n• 1 special character';
+              return 'Password must have:\n• At least 8 characters\n• 1 uppercase\n• 1 lowercase\n• 1 number\n• 1 special character';
             }
           }
-          if (labelText == 'Confirm your password') {
-            if (value != _passwordController.text) {
-              return 'Passwords do not match';
-            }
+          if (labelText == 'Confirm your password' &&
+              value != _passwordController.text) {
+            return 'Passwords do not match';
           }
-
           return null;
         },
       ),
     );
   }
+
 
   Widget _buildGenderDropdown() {
     return Padding(

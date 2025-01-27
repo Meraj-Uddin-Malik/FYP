@@ -1,12 +1,13 @@
-// ignore_for_file: use_build_context_synchronously
-
-import 'package:curved_navigation_bar/curved_navigation_bar.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:art_sweetalert/art_sweetalert.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:toggle_switch/toggle_switch.dart';
 import 'forgot_pass_screen.dart';
 import 'signup_screen.dart';
+import 'dart:async';
+
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -20,32 +21,10 @@ class LoginPageState extends State<LoginPage> {
   final TextEditingController cnicController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController badgeNoController = TextEditingController();
+  final _formKey = GlobalKey<FormState>(); // GlobalKey for FormState
   bool _isPasswordVisible = true;
 
-  signIn() async {
-    // print("Email: ${cnicController.text}");
-    // print("Password: ${passwordController.text}");
 
-    if (cnicController.text.isEmpty || passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all fields')),
-      );
-      return;
-    }
-
-    try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: cnicController.text,
-        password: passwordController.text,
-      );
-      Navigator.pushReplacementNamed(context, '/citizen_main_screen');
-    } catch (e) {
-      // print("Login Failed: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
-    }
-  }
 
   static const TextStyle textStyle = TextStyle(
     fontFamily: 'Barlow',
@@ -53,6 +32,159 @@ class LoginPageState extends State<LoginPage> {
     fontWeight: FontWeight.bold,
     letterSpacing: 1,
   );
+
+
+  signIn() async {
+    if (_formKey.currentState?.validate() ?? false) {
+      try {
+        // Attempt login with Firebase Authentication
+        UserCredential userCredential = await FirebaseAuth.instance
+            .signInWithEmailAndPassword(
+          email: cnicController.text, // Use the email entered in the form
+          password: passwordController.text,
+        );
+
+        // Check if user is authenticated
+        if (userCredential.user != null) {
+          // Fetch user data from Firestore
+          DocumentSnapshot userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(userCredential.user?.uid)  // Using UID to get the user doc
+              .get();
+
+          if (userDoc.exists) {
+            var userData = userDoc.data() as Map<String, dynamic>;
+            String role = userData['role'];
+            String badgeNo = userData['badgeno'] ?? '';  // Empty if no badge
+            String username = userData['username'];
+            String cnic = userData['cnic'];
+            String email = userData['email'];
+            String gender = userData['gender'];
+
+            // Print user data for debugging purposes
+            print('User Role: $role');
+            print('Badge No: $badgeNo');
+            print('Username: $username');
+            print('CNIC: $cnic');
+            print('Email: $email');
+            print('Gender: $gender');
+
+            // Check for valid role and navigate accordingly
+            if (role == null || role.isEmpty) {
+              showErrorAlert('Role not found for the user.');
+            } else {
+              // Check if role and badgeNo are valid for admin or police
+              if (role.toLowerCase() == 'admin' || role.toLowerCase() == 'police') {
+                if (badgeNo.isEmpty) {
+                  showErrorAlert('Badge number is required for $role.');
+                } else {
+                  switch (role.toLowerCase()) {
+                    case 'admin':
+                      navigateToAdminScreen();
+                      break;
+                    case 'police':
+                      navigateToPoliceScreen(badgeNo);  // Only for police, badge is checked
+                      break;
+                    default:
+                      showErrorAlert('Invalid Role: $role');
+                      break;
+                  }
+                }
+              }
+              // For Citizen: No badge check, just role-based navigation
+              else if (role.toLowerCase() == 'citizen') {
+                navigateToCitizenScreen();
+              } else {
+                showErrorAlert('Invalid Role: $role');
+              }
+            }
+          } else {
+            showErrorAlert('User data not found');
+          }
+        } else {
+          showErrorAlert('Authentication Failed');
+        }
+      } catch (e) {
+        // Handle any errors (e.g., invalid credentials)
+        ArtSweetAlert.show(
+          context: context,
+          artDialogArgs: ArtDialogArgs(
+            type: ArtSweetAlertType.danger,
+            title: "Login Failed",
+            text: "Incorrect credentials. Please try again.",
+          ),
+        );
+      }
+    } else {
+      // Show validation error if form is not valid
+      ArtSweetAlert.show(
+        context: context,
+        artDialogArgs: ArtDialogArgs(
+          type: ArtSweetAlertType.warning,
+          title: "Validation Error",
+          text: "Please fill in all fields correctly.",
+        ),
+      );
+    }
+  }
+
+
+  navigateToAdminScreen() {
+    print('Navigating to Admin Screen'); // Debugging
+    ArtSweetAlert.show(
+      context: context,
+      artDialogArgs: ArtDialogArgs(
+        type: ArtSweetAlertType.success,
+        title: "Login Successful",
+        text: "You are logged in as Admin.",
+      ),
+    );
+    Timer(const Duration(seconds: 2), () {
+      Navigator.pushReplacementNamed(context, '/admin_main_screen');
+    });
+  }
+
+  navigateToPoliceScreen(String badgeNo) {
+    print('Navigating to Police Screen');
+    ArtSweetAlert.show(
+      context: context,
+      artDialogArgs: ArtDialogArgs(
+        type: ArtSweetAlertType.success,
+        title: "Login Successful",
+        text: "You are logged in as Police. Badge No: $badgeNo",
+      ),
+    );
+    Timer(const Duration(seconds: 2), () {
+      Navigator.pushReplacementNamed(context, '/police_main_screen');
+    });
+  }
+
+  navigateToCitizenScreen() {
+    ArtSweetAlert.show(
+      context: context,
+      artDialogArgs: ArtDialogArgs(
+        type: ArtSweetAlertType.success,
+        title: "Login Successful",
+        text: "You are logged in as Citizen.",
+      ),
+    );
+    Timer(const Duration(seconds: 1), () {
+      Navigator.pushReplacementNamed(context, '/citizen_main_screen');
+    });
+  }
+
+  showErrorAlert(String message) {
+    ArtSweetAlert.show(
+      context: context,
+      artDialogArgs: ArtDialogArgs(
+        type: ArtSweetAlertType.danger,
+        title: "Error",
+        text: message,
+      ),
+    );
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -92,103 +224,102 @@ class LoginPageState extends State<LoginPage> {
                     child: SingleChildScrollView(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 20),
-                        child: Column(
-                          children: [
-                            const SizedBox(height: 40.0,),
-                            const Padding(
-                              padding: EdgeInsets.only(right: 195.0),
-                              child: Text('Select Users:',
-                                  style: TextStyle(color: Color(0xFF2A489E))),
-                            ),
-                            ToggleSwitch(
-                              initialLabelIndex: selectedToggleIndex,
-                              totalSwitches: 3,
-                              labels: const ['CITIZEN', 'ADMIN', 'POLICE'],
-                              cornerRadius: 20.0,
-                              minHeight: 35.5,
-                              minWidth: 100.0,
-                              fontSize: 13.0,
-                              activeFgColor: Colors.white,
-                              inactiveFgColor: const Color(0xFF2A489E),
-                              activeBgColor: const [Colors.red],
-                              inactiveBgColor: Colors.transparent,
-                              borderColor: const [Color(0xFF2A489E)],
-                              borderWidth: 0.9,
-                              onToggle: (index) =>
-                                  setState(() => selectedToggleIndex = index),
-                            ),
-                            const SizedBox(height: 30),
-                            _buildTextField(cnicController,
-                                'Enter your ID Number', false, Icons.credit_card),
-                            const SizedBox(height: 15),
-                            _buildTextField(passwordController,
-                                'Enter your password', true, Icons.phone),
-                            const SizedBox(height: 15),
-                            if (selectedToggleIndex != 0)
-                              _buildTextField(
-                                  badgeNoController, 'Enter your Badge no', false,
-                                  Icons.badge),
-                            Padding(
-                              padding: const EdgeInsets.only(right: 20.0),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(builder: (
-                                              context) => const ForgotPassScreen()),
-                                        ),
-                                    child: const Text(
-                                      'Forget Password?',
-                                      style: TextStyle(color: Color(0xFF2A489E),
-                                          fontSize: 14.0,
-                                          fontWeight: FontWeight.w600),
-                                    ),
-                                  ),
-                                ],
+                        child: Form(
+                          key: _formKey, // Add Form widget
+                          child: Column(
+                            children: [
+                              const SizedBox(height: 40.0,),
+                              const Padding(
+                                padding: EdgeInsets.only(right: 195.0),
+                                child: Text('Select Users:',
+                                    style: TextStyle(color: Color(0xFF2A489E))),
                               ),
-                            ),
-                            const SizedBox(height: 10),
-                            SizedBox(
-                              width: 245.0,
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  foregroundColor: Colors.white,
-                                  backgroundColor: Colors.red,
-                                ),
-                                onPressed: () => signIn(),
-                                child: const Text('Sign In'),
+                              ToggleSwitch(
+                                initialLabelIndex: selectedToggleIndex,
+                                totalSwitches: 3,
+                                labels: const ['CITIZEN', 'ADMIN', 'POLICE'],
+                                cornerRadius: 20.0,
+                                minHeight: 35.5,
+                                minWidth: 100.0,
+                                fontSize: 13.0,
+                                activeFgColor: Colors.white,
+                                inactiveFgColor: const Color(0xFF2A489E),
+                                activeBgColor: const [Colors.red],
+                                inactiveBgColor: Colors.transparent,
+                                borderColor: const [Color(0xFF2A489E)],
+                                borderWidth: 0.9,
+                                onToggle: (index) =>
+                                    setState(() => selectedToggleIndex = index),
                               ),
-                            ),
-                            const SizedBox(height: 30),
-                            GestureDetector(
-                              onTap: () =>
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (
-                                        context) => const SignUpScreen()),
-                                  ),
-                              child: RichText(
-                                text: TextSpan(
-                                  text: "Don't have an account? ",
-                                  style: const TextStyle(
-                                      color: Color(0xFF2A489E), fontSize: 14.0),
+                              const SizedBox(height: 30),
+                              _buildTextField(cnicController, 'Enter your email', false, Icons.email, true),
+                              const SizedBox(height: 15),
+                              _buildTextField(passwordController, 'Enter your password', true, Icons.lock, false),
+                              const SizedBox(height: 15),
+                              if (selectedToggleIndex != 0)
+                                _buildTextField(badgeNoController, 'Enter your Badge no', false, Icons.badge, false),
+                              Padding(
+                                padding: const EdgeInsets.only(right: 20.0),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
                                   children: [
-                                    TextSpan(
-                                      text: 'Sign up.',
-                                      style: TextStyle(
-                                        color: const Color(0xFF2A489E)
-                                            .withOpacity(0.8),
-                                        fontWeight: FontWeight.bold,
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(builder: (
+                                                context) => const ForgotPassScreen()),
+                                          ),
+                                      child: const Text(
+                                        'Forget Password?',
+                                        style: TextStyle(color: Color(0xFF2A489E),
+                                            fontSize: 14.0,
+                                            fontWeight: FontWeight.w600),
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                width: 245.0,
+                                child: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                    backgroundColor: Colors.red,
+                                  ),
+                                  onPressed: () => signIn(),
+                                  child: const Text('Sign In'),
+                                ),
+                              ),
+                              const SizedBox(height: 30),
+                              GestureDetector(
+                                onTap: () =>
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (
+                                          context) => const SignUpScreen()),
+                                    ),
+                                child: RichText(
+                                  text: TextSpan(
+                                    text: "Don't have an account? ",
+                                    style: const TextStyle(
+                                        color: Color(0xFF2A489E), fontSize: 14.0),
+                                    children: [
+                                      TextSpan(
+                                        text: 'Sign up.',
+                                        style: TextStyle(
+                                          color: const Color(0xFF2A489E)
+                                              .withOpacity(0.8),
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -206,60 +337,24 @@ class LoginPageState extends State<LoginPage> {
       TextEditingController controller,
       String labelText,
       bool obscureText,
-      IconData icon) {
+      IconData icon,
+      bool isEmail) {
     return SizedBox(
       width: 300.0,
-      child: TextField(
+      child: TextFormField(
         controller: controller,
         obscureText: obscureText && !_isPasswordVisible,
         style: const TextStyle(
           color: Color(0xFF203982), // Blue text for user input
           fontSize: 14.0,
         ),
-        keyboardType: labelText == 'Enter your CNIC'
-            ? TextInputType.number
-            : TextInputType.text, // Set keyboard type based on label
-        inputFormatters: labelText == 'Enter your CNIC'
-            ? [
-          FilteringTextInputFormatter.digitsOnly, // Only digits
-          LengthLimitingTextInputFormatter(13), // Max 13 digits
-          TextInputFormatter.withFunction((oldValue, newValue) {
-            // CNIC formatter logic
-            String digits = newValue.text.replaceAll(RegExp(r'\D'), '');
-            String formatted = '';
-            if (digits.length <= 5) {
-              formatted = digits; // First 5 digits
-            } else if (digits.length <= 12) {
-              formatted =
-              '${digits.substring(0, 5)}-${digits.substring(5)}'; // Add first hyphen
-            } else {
-              formatted =
-              '${digits.substring(0, 5)}-${digits.substring(5, 12)}-${digits.substring(12)}'; // Add second hyphen
-            }
-            return TextEditingValue(
-              text: formatted,
-              selection:
-              TextSelection.collapsed(offset: formatted.length),
-            );
-          }),
-        ]
-            : [], // Empty formatter for non-CNIC fields
+        keyboardType: isEmail ? TextInputType.emailAddress : TextInputType.text, // Email validation
         decoration: InputDecoration(
           border: const OutlineInputBorder(),
           labelText: labelText,
-          labelStyle: TextStyle(
-            color: const Color(0xFF203982).withOpacity(0.7),
-            fontSize: 13.0,
-          ),
-          floatingLabelStyle: const TextStyle(
-            color: Color(0xFF203982),
-            fontWeight: FontWeight.w400,
-            fontSize: 17.5,
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            vertical: 8.0,
-            horizontal: 10.0,
-          ),
+          labelStyle: TextStyle(color: const Color(0xFF203982).withOpacity(0.7), fontSize: 13.0),
+          floatingLabelStyle: const TextStyle(color: Color(0xFF203982), fontWeight: FontWeight.w400, fontSize: 17.5),
+          contentPadding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 10.0),
           prefixIcon: ShaderMask(
             shaderCallback: (Rect bounds) {
               return const LinearGradient(
@@ -268,19 +363,12 @@ class LoginPageState extends State<LoginPage> {
                 end: Alignment.bottomRight,
               ).createShader(bounds);
             },
-            child: Icon(
-              icon,
-              color: Colors.red.shade100, // Base icon color
-              size: 19.5,
-            ),
+            child: Icon(icon, color: Colors.red.shade100, size: 19.5),
           ),
-          suffixIcon: (labelText == 'Enter your password' ||
-              labelText == 'Confirm your password')
+          suffixIcon: (labelText == 'Enter your password' || labelText == 'Confirm your password')
               ? IconButton(
             icon: Icon(
-              _isPasswordVisible
-                  ? Icons.visibility
-                  : Icons.visibility_off,
+              _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
               color: const Color(0xFF203982),
             ),
             iconSize: 19.0,
@@ -292,19 +380,23 @@ class LoginPageState extends State<LoginPage> {
           )
               : null,
           enabledBorder: const OutlineInputBorder(
-            borderSide: BorderSide(
-              color: Color(0xFF203982),
-              width: 0.6,
-            ),
+            borderSide: BorderSide(color: Color(0xFF203982), width: 0.6),
           ),
           focusedBorder: const OutlineInputBorder(
-            borderSide: BorderSide(
-              color: Color(0xFF203982),
-              width: 1.0,
-            ),
+            borderSide: BorderSide(color: Color(0xFF203982), width: 1.0),
           ),
         ),
+        validator: (value) {
+          if (value == null || value.isEmpty) {
+            return 'This field cannot be empty';
+          }
+          if (isEmail && !RegExp(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$").hasMatch(value)) {
+            return 'Please enter a valid email address';
+          }
+          return null;
+        },
       ),
     );
   }
+
 }

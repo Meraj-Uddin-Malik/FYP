@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:fyp_project/Admin_Module/Mobile_Screen/admin_main_screen.dart';
+import 'package:fyp_project/Police_Module/Mobile_Screen/police_main_screen.dart';
 import 'Citizen_Module/Mobile_Screen/against_crime_screen.dart';
 import 'Citizen_Module/Mobile_Screen/citizen_main_screen.dart';
 import 'Citizen_Module/Mobile_Screen/login_screen.dart';
@@ -22,7 +24,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       // home: LoginPage(),
-      initialRoute: '/login_screen',  // Initial route set to SplashScreen
+      initialRoute: '/',  // Initial route set to SplashScreen
       routes: {
         '/': (context) => const SplashScreen(),
         '/welcome_screen': (context) => const LoginSignupSelection(),
@@ -30,6 +32,8 @@ class MyApp extends StatelessWidget {
         '/signup_screen': (context) => const SignUpScreen(),
         '/citizen_main_screen': (context) =>  const CitizenMainScreen(),
         '/against_crime_screen': (context) =>  const AgainstCrimeScreen(),
+        '/admin_main_screen': (context) => const AdminMainScreen(),
+        '/police_main_screen': (context) => const PoliceMainScreen(),
       },
     );
   }
